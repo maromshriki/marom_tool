@@ -1,6 +1,8 @@
 import boto3
 from utils import get_username, resource_tagged_by_cli, get_latest_ami
 from config import ALLOWED_INSTANCE_TYPES
+from botocore.exceptions import ClientError
+
 
 ec2 = boto3.resource('ec2')
 client = boto3.client('ec2')
@@ -67,4 +69,5 @@ def handle_ec2(action, params):
                 instance.terminate()
             except ClientError as e:
                 print(f"Error terminating instance {instance.id}: {e}")
+
         return
