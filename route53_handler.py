@@ -5,75 +5,62 @@ from botocore.exceptions import ClientError
 
 client = boto3.client('route53')
 
+r53 = boto3.client("route53")
+
 def handle_route53(action, params):
-    username = get_username()
+    try:
+        if action == "create":
+            domain_name = params.get("domain_name")
+            if not domain_name:
+                print("❌ Must provide domain_name")
+                return
+            print(f"Creating hosted zone {domain_name}...")
+            r53.create_hosted_zone(
+                Name=domain_name,
+                CallerReference=domain_name
+            )
 
-    if action == "create":
-        domain_name = params.get("name")
-        if not domain_name:
-            print("ERROR: Provide domain via --params name=example.com")
-            return
+        elif action == "delete":
+            hosted_zone_id = params.get("hosted_zone_id")
+            dry_run = str(params.get("dry_run", "false")).lower() == "true"
+            force = str(params.get("yes", "false")).lower() == "true"
 
-        response = client.create_hosted_zone(
-            Name=domain_name,
-            CallerReference=str(hash(domain_name)),
-            HostedZoneConfig={
-                'Comment': 'Created by platform-cli',
-                'PrivateZone': False
-            },
-            Tags=[{'Key': 'CreatedBy', 'Value': 'platform-cli'},
-                  {'Key': 'Owner', 'Value': username}]
-        )
-        print(f"Created zone: {response['HostedZone']['Id']}")
+            if not hosted_zone_id:
+                print("❌ Must provide hosted_zone_id")
+                return
 
-    elif action == "list":
-        zones = client.list_hosted_zones()["HostedZones"]
-        for zone in zones:
-            zone_id = zone['Id']
-            tags = client.list_tags_for_resource(ResourceType='hostedzone', ResourceId=zone_id.split("/")[-1])['ResourceTagSet']['Tags']
-            if resource_tagged_by_cli(tags):
-                print(zone['Name'])
+            rrsets = r53.list_resource_record_sets(HostedZoneId=hosted_zone_id)["ResourceRecordSets"]
+            changes = []
+            for rr in rrsets:
+                if rr["Type"] in ("NS", "SOA"):
+                    continue
+                changes.append({"Action": "DELETE", "ResourceRecordSet": rr})
 
-    elif action == "delete":
-        hosted_zone_id = params.get("hosted_zone_id")
-        if not hosted_zone_id:
-            print("Error: 'hosted_zone_id' parameter is required for delete action.")
-            return
+            if dry_run:
+                print(f"[DryRun] Would delete hosted zone {hosted_zone_id} with {len(changes)} records.")
+                return
 
-        try:
-            # List all record sets except NS and SOA (required for hosted zone)
-            paginator = client.get_paginator('list_resource_record_sets')
-            records_to_delete = []
+            if changes and not force:
+                print(f"❌ Hosted zone not empty. Use --yes to confirm deletion.")
+                return
 
-            for page in paginator.paginate(HostedZoneId=hosted_zone_id):
-                for record in page['ResourceRecordSets']:
-                    # Skip default NS and SOA records
-                    if record['Type'] in ['NS', 'SOA']:
-                        continue
-                    records_to_delete.append({
-                        'Action': 'DELETE',
-                        'ResourceRecordSet': record
-                    })
-
-            # If there are records to delete, submit a change batch
-            if records_to_delete:
-                print(f"Deleting {len(records_to_delete)} DNS records from hosted zone {hosted_zone_id}...")
-                response = client.change_resource_record_sets(
+            if changes:
+                r53.change_resource_record_sets(
                     HostedZoneId=hosted_zone_id,
-                    ChangeBatch={
-                        'Changes': records_to_delete
-                    }
+                    ChangeBatch={"Changes": changes}
                 )
-                print("Records deleted, waiting for changes to propagate...")
-                # Optionally wait or check change status here
 
-            # Finally, delete the hosted zone
-            print(f"Deleting hosted zone {hosted_zone_id}...")
-            client.delete_hosted_zone(Id=hosted_zone_id)
+            r53.delete_hosted_zone(Id=hosted_zone_id)
             print(f"Hosted zone {hosted_zone_id} deleted successfully.")
 
-        except ClientError as e:
-            print(f"Error deleting hosted zone {hosted_zone_id}: {e}")
+        elif action == "list":
+            zones = r53.list_hosted_zones()
+            for z in zones.get("HostedZones", []):
+                print(z["Id"], z["Name"])
 
+        else:
+            print(f"Unknown Route53 action: {action}")
 
-        return
+    except ClientError as e:
+        print(f"Error handling Route53: {e}")
+
