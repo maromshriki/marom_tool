@@ -55,30 +55,34 @@ def handle_s3(action, params):
             except:
                 continue
 
-    elif action == "delete":
-        bucket_name = params.get("bucket_name")
-        if not bucket_name:
-            print("Error: 'bucket_name' parameter is required for delete action.")
+    def delete_bucket(params):
+    bucket_name = params.get("bucket_name")
+    dry_run = str(params.get("dry_run", "false")).lower() == "true"
+    force = str(params.get("yes", "false")).lower() == "true"
+
+    if not bucket_name:
+        print("Must provide bucket_name for deletion.")
+        return
+
+    try:
+        if dry_run:
+            print(f"[DryRun] Would delete bucket {bucket_name} and all its objects.")
             return
 
-        bucket = s3.Bucket(bucket_name)
+        bucket = s3_res.Bucket(bucket_name)
+        objects = list(bucket.objects.all())
+        versions = list(bucket.object_versions.all())
 
-        try:
-            # Delete all objects in the bucket
-            print(f"Deleting all objects in bucket: {bucket_name}")
-            bucket.objects.delete()
+        if (objects or versions) and not force:
+            print(f" Bucket {bucket_name} is not empty. Use --yes to force delete.")
+            return
 
-            # If versioning enabled, delete all versions
-            bucket.object_versions.delete()
-
-            # Now delete the bucket
-            print(f"Deleting bucket: {bucket_name}")
-            bucket.delete()
-            print(f"Bucket '{bucket_name}' deleted successfully.")
-
-        except ClientError as e:
-            print(f"Error deleting bucket {bucket_name}: {e}")
-
-        return
+        # delete objects
+        bucket.objects.all().delete()
+        bucket.object_versions.all().delete()
+        bucket.delete()
+        print(f"Bucket {bucket_name} deleted successfully.")
+    except ClientError as e:
+        print(f"Error deleting bucket: {e}")
 
 
