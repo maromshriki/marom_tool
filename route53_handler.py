@@ -1,5 +1,7 @@
 import boto3
 from utils import get_username, resource_tagged_by_cli
+from botocore.exceptions import ClientError
+
 
 client = boto3.client('route53')
 
@@ -72,5 +74,6 @@ def handle_route53(action, params):
 
         except ClientError as e:
             print(f"Error deleting hosted zone {hosted_zone_id}: {e}")
+
 
         return
