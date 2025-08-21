@@ -2,11 +2,8 @@ import boto3
 from utils import get_username, confirm_public_bucket, resource_tagged_by_cli
 from botocore.exceptions import ClientError
 
-
 s3_client = boto3.client('s3')
 s3_res = boto3.resource('s3')
-bucket = s3_res.Bucket(bucket_name)
-
 
 def handle_s3(action, params):
     username = get_username()
@@ -83,4 +80,5 @@ def handle_s3(action, params):
             print(f"Error deleting bucket {bucket_name}: {e}")
 
         return
+
 
