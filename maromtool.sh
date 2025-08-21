@@ -11,7 +11,7 @@ sudo yum install -y python3
 
 sudo yum install -y python3-pip
 
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" - o "awscliv2.zip"
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 
 unzip awscliv2.zip
 
@@ -33,3 +33,4 @@ fi
 
 echo "You can use the tool now. Running it..."
 python3 tool.py
+
