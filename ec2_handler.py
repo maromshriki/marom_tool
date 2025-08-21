@@ -79,5 +79,6 @@ def handle_ec2(action, params):
             print("❌ Must specify either instance_id or --all-tagged (with --yes). Nothing deleted.")
     except ClientError as e:
         print(f"Error deleting instance: {e}")
-        return
+      
+
 
