@@ -52,22 +52,32 @@ def handle_ec2(action, params):
             if resource_tagged_by_cli(instance.tags):
                 print(f"{instance.id} | {instance.state['Name']} | {instance.instance_type}")
 
-    elif action == "delete":
-        # Get all instances
-        instances = ec2.instances.all()
-
-        # Filter instances that are stopped
-        deletable_instances = [i for i in instances if i.state['Name'] == 'stopped']
-
-        if not deletable_instances:
-            print("No stopped instances found to delete.")
-            return
-
-        for instance in deletable_instances:
-            try:
-                print(f"Terminating instance {instance.id} (state: {instance.state['Name']})")
-                instance.terminate()
-            except ClientError as e:
-                print(f"Error terminating instance {instance.id}: {e}")
-
+    def delete_instance(instance_id=None, all_tagged=False, dry_run=False):
+    try:
+        if instance_id:
+            instance = ec2.Instance(instance_id)
+            if dry_run:
+                print(f"[DryRun] Would terminate instance {instance_id}")
+                return
+            instance.terminate()
+            print(f"Instance {instance_id} terminated.")
+        elif all_tagged:
+            instances = ec2.instances.filter(Filters=[
+                {"Name": "tag:CreatedBy", "Values": ["platform-cli"]}
+            ])
+            ids = [i.id for i in instances]
+            if not ids:
+                print("No instances found to delete.")
+                return
+            if dry_run:
+                print(f"[DryRun] Would terminate instances: {ids}")
+                return
+            for iid in ids:
+                ec2.Instance(iid).terminate()
+                print(f"Instance {iid} terminated.")
+        else:
+            print("❌ Must specify either instance_id or --all-tagged (with --yes). Nothing deleted.")
+    except ClientError as e:
+        print(f"Error deleting instance: {e}")
         return
+
